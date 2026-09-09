@@ -243,12 +243,12 @@ Les étapes Docker restent identiques. Après avoir exporté `AUTH_DB_URL`, `AUT
 
 ```bash
 cd services/auth-service
-bash ./mvnw spring-boot:run
+./mvnw spring-boot:run
 ```
 
 ## Tests
 
-Docker doit être démarré, car le test de contexte utilise Testcontainers et PostgreSQL 17. Les variables `AUTH_DB_URL`, `AUTH_DB_USERNAME` et `AUTH_DB_PASSWORD` doivent également être disponibles dans le terminal utilisé.
+Docker doit être démarré, car le test de contexte utilise Testcontainers et PostgreSQL 17. Grâce à `@ServiceConnection`, Testcontainers fournit automatiquement les informations de connexion à la base éphémère : il n’est pas nécessaire de démarrer PostgreSQL avec Docker Compose ni de définir les variables `AUTH_DB_*` pour exécuter les tests.
 
 Sous Windows :
 
@@ -261,7 +261,7 @@ Sous Linux ou macOS :
 
 ```bash
 cd services/auth-service
-bash ./mvnw test
+./mvnw test
 ```
 
 ## Documentation du projet
