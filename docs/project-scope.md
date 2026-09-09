@@ -333,7 +333,7 @@ Les éléments suivants ne font pas partie du projet :
 
 ## 11. Contraintes techniques
 
-- backend développé avec Java 21 et Spring Boot 3.x ;
+- backend développé avec Java 21 et Spring Boot 4.1.x ;
 - frontend développé avec React et TypeScript ;
 - APIs exposées au format REST/JSON ;
 - base de données PostgreSQL ;

@@ -69,7 +69,7 @@ Dans l’état actuel, seul `auth_db` est créé par Docker Compose.
 | Technologie | Utilisation et justification |
 |---|---|
 | Java 21 | Version LTS moderne pour les microservices backend |
-| Spring Boot 4.1.0 | Configuration et démarrage de `auth-service` |
+| Spring Boot 4.1.1 | Configuration et démarrage de `auth-service` |
 | Spring Web MVC | Fondation des futures APIs REST |
 | Spring Data JPA | Mapping entre le domaine Java et PostgreSQL |
 | Flyway | Migrations SQL versionnées et reproductibles |
@@ -271,6 +271,7 @@ bash ./mvnw test
 - [Règles métier](docs/business-rules.md)
 - [Responsabilités des microservices](docs/architecture/service-responsibilities.md)
 - [Propriété et gouvernance des données](docs/architecture/data-ownership.md)
+- [ADR-0001 — Baseline Java et Spring Boot](docs/architecture/decisions/0001-java-spring-boot-baseline.md)
 - [Modèle de menace STRIDE](docs/security/initial-threat-model.md)
 - [Registre d’acceptation des risques](security/risk-acceptance.md)
 
