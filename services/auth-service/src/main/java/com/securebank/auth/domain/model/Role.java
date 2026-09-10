@@ -1,4 +1,4 @@
-package com.securebank.auth.helper;
+package com.securebank.auth.domain.model;
 
 public enum Role {
     CLIENT,
