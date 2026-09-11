@@ -28,3 +28,17 @@ management:
   endpoint:
     health:
       show-details: always
+
+app:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:secure-bank-auth-service}
+      audience: ${JWT_AUDIENCE:secure-bank-api}
+      key-id: ${JWT_KEY_ID:auth-key-2026-01}
+
+      private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:./secrets/jwt-private.pem}
+      public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:./secrets/jwt-public.pem}
+
+      access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT10M}
+      refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P7D}
+      refresh-token-family-ttl: ${JWT_REFRESH_TOKEN_FAMILY_TTL:P30D}

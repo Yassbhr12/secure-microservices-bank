@@ -23,3 +23,6 @@ target/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local JWT signing keys
+services/auth-service/secrets/
