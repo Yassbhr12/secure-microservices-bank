@@ -1,6 +1,8 @@
 package com.securebank.auth.api.error;
 
 import com.securebank.auth.application.exception.EmailAlreadyExistsException;
+import com.securebank.auth.application.exception.InvalidCredentialsException;
+import com.securebank.auth.application.exception.InvalidRefreshTokenException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -81,5 +83,45 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             status,
             request
         );
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(
+        InvalidCredentialsException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNAUTHORIZED,
+            exception.getMessage()
+        );
+
+        problem.setTitle("Authentification échouée");
+
+        problem.setType(
+            URI.create(
+                "urn:secure-bank:problem:invalid-credentials"
+            )
+        );
+
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ProblemDetail handleInvalidRefreshToken(
+        InvalidRefreshTokenException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNAUTHORIZED,
+            exception.getMessage()
+        );
+
+        problem.setTitle("Session invalide");
+
+        problem.setType(
+            URI.create(
+                "urn:secure-bank:problem:invalid-refresh-token"
+            )
+        );
+
+        return problem;
     }
 }

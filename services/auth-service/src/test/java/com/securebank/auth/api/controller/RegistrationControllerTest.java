@@ -2,6 +2,8 @@ package com.securebank.auth.api.controller;
 
 import com.securebank.auth.application.exception.EmailAlreadyExistsException;
 import com.securebank.auth.application.service.RegistrationService;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.securebank.auth.config.SecurityConfig;
 import com.securebank.auth.domain.model.Role;
 import com.securebank.auth.domain.model.User;
@@ -37,6 +39,9 @@ class RegistrationControllerTest {
 
     @MockitoBean
     private RegistrationService registrationService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     void shouldReturn201WhenRegistrationSucceeds() throws Exception {
