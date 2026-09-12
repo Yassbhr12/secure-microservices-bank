@@ -10,6 +10,10 @@ services:
       AUTH_DB_NAME: ${AUTH_DB_NAME:-auth_db}
       AUTH_DB_USERNAME: ${AUTH_DB_USERNAME:-auth_service_user}
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD is required}
+
+      ACCOUNT_DB_NAME: ${ACCOUNT_DB_NAME:-account_db}
+      ACCOUNT_DB_USERNAME: ${ACCOUNT_DB_USERNAME:-account_service_user}
+      ACCOUNT_DB_PASSWORD: ${ACCOUNT_DB_PASSWORD:?ACCOUNT_DB_PASSWORD is required}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
