@@ -3,6 +3,7 @@ package com.securebank.transaction.application;
 import com.securebank.transaction.api.dto.CreateTransferRequest;
 import com.securebank.transaction.api.dto.TransferResponse;
 import com.securebank.transaction.client.AccountServiceClient;
+import com.securebank.transaction.client.AuditServiceClient;
 import com.securebank.transaction.client.dto.AccountTransferResponse;
 import com.securebank.transaction.domain.model.Transfer;
 import com.securebank.transaction.domain.model.TransferStatus;
@@ -25,17 +26,25 @@ public class TransferExecutionService {
 
     private final TransferIdempotencyService
         idempotencyService;
-    private final AccountServiceClient accountServiceClient;
+
+    private final AccountServiceClient
+        accountServiceClient;
+
     private final TransferStateService stateService;
+
+    private final AuditServiceClient
+        auditServiceClient;
 
     public TransferExecutionService(
         TransferIdempotencyService idempotencyService,
         AccountServiceClient accountServiceClient,
-        TransferStateService stateService
+        TransferStateService stateService,
+        AuditServiceClient auditServiceClient
     ) {
         this.idempotencyService = idempotencyService;
         this.accountServiceClient = accountServiceClient;
         this.stateService = stateService;
+        this.auditServiceClient = auditServiceClient;
     }
 
     public TransferResponse execute(
@@ -84,19 +93,27 @@ public class TransferExecutionService {
                     transfer.getId()
                 );
 
+            auditServiceClient
+                .recordTransferCompleted(completed);
+
             LOGGER.info(
                 "Transfer completed: transferId={}",
                 transfer.getId()
             );
 
             return TransferResponse.from(completed);
+
         } catch (
             AccountTransferRejectedException exception
         ) {
-            stateService.markFailed(
-                transfer.getId(),
-                exception.getFailureCode()
-            );
+            Transfer failed =
+                stateService.markFailed(
+                    transfer.getId(),
+                    exception.getFailureCode()
+                );
+
+            auditServiceClient
+                .recordTransferFailed(failed);
 
             LOGGER.warn(
                 "Transfer rejected: transferId={}, code={}",
@@ -107,6 +124,7 @@ public class TransferExecutionService {
             throw new TransferRejectedException(
                 exception.getFailureCode()
             );
+
         } catch (
             AccountServiceUnavailableException exception
         ) {

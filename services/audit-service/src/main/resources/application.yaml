@@ -1,0 +1,54 @@
+spring:
+  config:
+    import: 'optional:file:../../.env[.properties]'
+
+  application:
+    name: audit-service
+
+  datasource:
+    url: ${AUDIT_DB_URL}
+    username: ${AUDIT_DB_USERNAME}
+    password: ${AUDIT_DB_PASSWORD}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    clean-disabled: true
+
+server:
+  port: 8084
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: SecureMicroservicesBank Audit Service
+    description: Immutable storage and consultation of critical audit events
+
+app:
+  security:
+    internal:
+      api-key: ${INTERNAL_API_KEY}
+
+    jwt:
+      issuer: ${JWT_ISSUER:secure-bank-auth-service}
+      audience: ${JWT_AUDIENCE:secure-bank-api}
+      public-key-location: ${AUDIT_JWT_PUBLIC_KEY_LOCATION:file:../auth-service/secrets/jwt-public.pem}

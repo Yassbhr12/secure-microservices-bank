@@ -18,6 +18,10 @@ services:
       TRANSACTION_DB_NAME: ${TRANSACTION_DB_NAME:-transaction_db}
       TRANSACTION_DB_USERNAME: ${TRANSACTION_DB_USERNAME:-transaction_service_user}
       TRANSACTION_DB_PASSWORD: ${TRANSACTION_DB_PASSWORD:?TRANSACTION_DB_PASSWORD is required}
+
+      AUDIT_DB_NAME: ${AUDIT_DB_NAME:-audit_db}
+      AUDIT_DB_USERNAME: ${AUDIT_DB_USERNAME:-audit_service_user}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD is required}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
