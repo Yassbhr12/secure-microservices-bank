@@ -1,0 +1,49 @@
+spring:
+  config:
+    import: 'optional:file:../../.env[.properties]'
+
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/auth/**
+
+            - id: account-service
+              uri: ${ACCOUNT_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/accounts/**,/api/v1/admin/accounts/**
+
+            - id: transaction-service
+              uri: ${TRANSACTION_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/transfers/**
+
+            - id: audit-service
+              uri: ${AUDIT_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/audit-events,/api/v1/audit-events/**
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: SecureMicroservicesBank API Gateway
+    description: Central entry point for banking APIs
