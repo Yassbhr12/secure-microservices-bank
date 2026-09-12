@@ -33,6 +33,8 @@ management:
 
 app:
   security:
+    internal:
+      api-key: ${INTERNAL_API_KEY}
     jwt:
       issuer: ${JWT_ISSUER:secure-bank-auth-service}
       audience: ${JWT_AUDIENCE:secure-bank-api}
