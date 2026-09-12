@@ -13,6 +13,9 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import com.securebank.account.exception.AccountTransferException;
+
+import java.math.RoundingMode;
 
 @Entity
 @Table(name = "accounts")
@@ -145,6 +148,107 @@ public class Account {
 
     public boolean isBlocked() {
         return status == AccountStatus.BLOCKED;
+    }
+
+    public void debit(
+        BigDecimal amount,
+        String expectedCurrency,
+        Instant now
+    ) {
+        Instant operationTime = requireInstant(now);
+        BigDecimal normalizedAmount =
+            normalizeAmount(amount);
+
+        ensureActive();
+        ensureCurrency(expectedCurrency);
+
+        if (balance.compareTo(normalizedAmount) < 0) {
+            throw new AccountTransferException(
+                "INSUFFICIENT_FUNDS",
+                "Insufficient account balance"
+            );
+        }
+
+        balance = balance.subtract(normalizedAmount);
+        updatedAt = operationTime;
+    }
+
+    public void credit(
+        BigDecimal amount,
+        String expectedCurrency,
+        Instant now
+    ) {
+        Instant operationTime = requireInstant(now);
+        BigDecimal normalizedAmount =
+            normalizeAmount(amount);
+
+        ensureActive();
+        ensureCurrency(expectedCurrency);
+
+        balance = balance.add(normalizedAmount);
+        updatedAt = operationTime;
+    }
+
+    private void ensureActive() {
+        if (status != AccountStatus.ACTIVE) {
+            throw new AccountTransferException(
+                "ACCOUNT_BLOCKED",
+                "Account is not active"
+            );
+        }
+    }
+
+    private void ensureCurrency(String expectedCurrency) {
+        String normalizedCurrency =
+            normalizeCurrency(expectedCurrency);
+
+        if (!currency.equals(normalizedCurrency)) {
+            throw new AccountTransferException(
+                "CURRENCY_MISMATCH",
+                "Account currency does not match transfer currency"
+            );
+        }
+    }
+
+    private static BigDecimal normalizeAmount(
+        BigDecimal amount
+    ) {
+        if (amount == null) {
+            throw new AccountTransferException(
+                "INVALID_AMOUNT",
+                "Transfer amount is required"
+            );
+        }
+
+        final BigDecimal normalizedAmount;
+
+        try {
+            normalizedAmount = amount.setScale(
+                2,
+                RoundingMode.UNNECESSARY
+            );
+        } catch (ArithmeticException exception) {
+            throw new AccountTransferException(
+                "INVALID_AMOUNT",
+                "Transfer amount must have at most 2 decimal places"
+            );
+        }
+
+        if (normalizedAmount.signum() <= 0) {
+            throw new AccountTransferException(
+                "INVALID_AMOUNT",
+                "Transfer amount must be positive"
+            );
+        }
+
+        if (normalizedAmount.precision() > 19) {
+            throw new AccountTransferException(
+                "INVALID_AMOUNT",
+                "Transfer amount is too large"
+            );
+        }
+
+        return normalizedAmount;
     }
 
     private static String normalizeAccountNumber(

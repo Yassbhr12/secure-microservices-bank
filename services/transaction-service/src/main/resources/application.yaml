@@ -1,0 +1,44 @@
+spring:
+  config:
+    import: 'optional:file:../../.env[.properties]'
+
+  application:
+    name: transaction-service
+
+  datasource:
+    url: ${TRANSACTION_DB_URL:jdbc:postgresql://localhost:5433/transaction_db}
+    username: ${TRANSACTION_DB_USERNAME:transaction_service_user}
+    password: ${TRANSACTION_DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:secure-bank-auth-service}
+      audience: ${JWT_AUDIENCE:secure-bank-api}
+      public-key-location: ${TRANSACTION_JWT_PUBLIC_KEY_LOCATION:file:../auth-service/secrets/jwt-public.pem}
+
+  clients:
+    account-service:
+      base-url: ${ACCOUNT_SERVICE_BASE_URL:http://localhost:8082}
+      api-key: ${INTERNAL_API_KEY}

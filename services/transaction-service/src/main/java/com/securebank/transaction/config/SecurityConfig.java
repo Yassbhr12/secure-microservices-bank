@@ -1,11 +1,10 @@
-package com.securebank.account.config;
+package com.securebank.transaction.config;
 
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -33,11 +32,9 @@ import java.util.Set;
 import java.util.UUID;
 
 @Configuration(proxyBeanMethods = false)
-@EnableMethodSecurity
-@EnableConfigurationProperties({
-    JwtValidationProperties.class,
-    InternalSecurityProperties.class
-})
+@EnableConfigurationProperties(
+    JwtValidationProperties.class
+)
 public class SecurityConfig {
 
     private static final String ROLE_CLAIM = "role";
@@ -54,7 +51,6 @@ public class SecurityConfig {
     public RSAPublicKey jwtPublicKey(
         JwtValidationProperties properties
     ) throws IOException {
-
         try (InputStream inputStream =
                  properties.publicKeyLocation()
                      .getInputStream()) {
@@ -121,11 +117,12 @@ public class SecurityConfig {
     @Bean
     public JwtAuthenticationConverter
     jwtAuthenticationConverter() {
-
         JwtGrantedAuthoritiesConverter authorities =
             new JwtGrantedAuthoritiesConverter();
 
-        authorities.setAuthoritiesClaimName(ROLE_CLAIM);
+        authorities.setAuthoritiesClaimName(
+            ROLE_CLAIM
+        );
         authorities.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter =
@@ -143,7 +140,6 @@ public class SecurityConfig {
         HttpSecurity http,
         JwtAuthenticationConverter converter
     ) throws Exception {
-
         return http
             .csrf(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable)
@@ -176,23 +172,13 @@ public class SecurityConfig {
 
                 .requestMatchers(
                     HttpMethod.POST,
-                    "/api/v1/accounts"
+                    "/api/v1/transfers"
                 ).hasRole("CLIENT")
 
                 .requestMatchers(
                     HttpMethod.GET,
-                    "/api/v1/accounts",
-                    "/api/v1/accounts/**"
-                ).hasRole("CLIENT")
-
-                .requestMatchers(
-                    HttpMethod.PATCH,
-                    "/api/v1/admin/accounts/**"
-                ).hasRole("ADMIN")
-
-                .requestMatchers(
-                    HttpMethod.POST,
-                    "/api/v1/internal/transfers"
+                    "/api/v1/transfers",
+                    "/api/v1/transfers/**"
                 ).hasRole("CLIENT")
 
                 .anyRequest().authenticated()
@@ -209,7 +195,9 @@ public class SecurityConfig {
             .build();
     }
 
-    private static boolean isValidUuid(String subject) {
+    private static boolean isValidUuid(
+        String subject
+    ) {
         if (subject == null || subject.isBlank()) {
             return false;
         }
