@@ -1,132 +1,184 @@
 # SecureMicroservicesBank
 
-SecureMicroservicesBank est un projet pédagogique avancé qui simule une application bancaire moderne construite avec une architecture microservices et une démarche DevSecOps de bout en bout.
+SecureMicroservicesBank est une application bancaire fictive construite avec une architecture microservices sécurisée.
 
-L’objectif est de construire progressivement un système bancaire fictif sécurisé, testé, conteneurisé, déployé sur Kubernetes et observable. Le projet utilise exclusivement des données de démonstration : il ne traite aucun paiement réel et n’est pas destiné à la production.
+Le projet démontre l’authentification JWT, la rotation des refresh tokens, le contrôle d’accès par rôles, la gestion de comptes, les virements idempotents, l’audit des opérations et la conteneurisation avec Docker Compose.
 
-## État actuel du projet
+> Ce projet est réalisé à des fins académiques. Il utilise uniquement des données fictives et n’est pas destiné à un environnement bancaire réel.
 
-Le dépôt est en phase d’initialisation technique. La documentation d’architecture décrit la cible complète, tandis que l’implémentation applicative se concentre actuellement sur les fondations de `auth-service`.
+## État du projet
 
-| Domaine | État | Contenu actuel |
+Le MVP backend est fonctionnel et conteneurisé.
+
+| Composant | État | Responsabilité |
 |---|---|---|
-| Cadrage fonctionnel et architecture | Réalisé | Périmètre, cas d’utilisation, règles métier, responsabilités, propriété des données et modèle de menace STRIDE |
-| PostgreSQL local | Réalisé | PostgreSQL 17 avec Docker Compose, volume persistant, base et utilisateur dédiés à `auth-service` |
-| `auth-service` | En cours | Squelette Spring Boot, configuration JPA/Flyway, migration `users`, entité initiale et Actuator |
-| APIs d’authentification | Planifié | Inscription, connexion, JWT, refresh token, déconnexion, verrouillage et MFA simple |
-| Autres microservices du MVP | Planifié | Gateway, Customer, Account, Transaction et Audit |
-| DevSecOps et cloud-native | Planifié | CI/CD, scans de sécurité, images Docker, Kubernetes, SBOM, signature et observabilité |
+| API Gateway | Terminé | Point d’entrée unique et routage |
+| Auth Service | Terminé | Inscription, connexion, JWT, refresh et logout |
+| Account Service | Terminé | Création, consultation et gestion des soldes |
+| Transaction Service | Terminé | Virements et idempotence |
+| Audit Service | Terminé | Traçabilité immuable des opérations |
+| PostgreSQL | Terminé | Bases logiques séparées par service |
+| Docker Compose | Terminé | Construction et démarrage de l’environnement |
+| Frontend | Hors MVP | Démonstration effectuée avec Postman |
+| Kubernetes | Reporté | Prévu comme évolution |
+| Messaging | Reporté | Kafka ou RabbitMQ prévu ultérieurement |
 
-> Les fonctionnalités décrites dans la cible d’architecture ne sont pas nécessairement déjà implémentées. Consultez toujours ce tableau et le code du dépôt pour connaître l’état réel.
+## Fonctionnalités principales
 
-## Parcours fonctionnel cible
+### Authentification et sécurité
 
-Le premier flux vertical du MVP est :
+- inscription d’un utilisateur ;
+- normalisation et unicité des adresses e-mail ;
+- hachage des mots de passe avec BCrypt ;
+- connexion avec access token JWT signé en RSA ;
+- access token de courte durée ;
+- refresh token opaque stocké sous forme de hash ;
+- rotation des refresh tokens ;
+- détection de réutilisation d’un ancien token ;
+- révocation d’une famille de tokens ;
+- logout avec révocation du refresh token ;
+- autorisation basée sur les rôles ;
+- validation locale du JWT dans chaque service concerné.
 
-```text
-Inscription -> Connexion JWT -> Profil client -> Compte bancaire
-            -> Virement idempotent -> Audit
-```
+### Comptes
 
-Le système final doit notamment garantir qu’un client ne peut consulter que ses propres ressources, qu’un virement n’est jamais exécuté deux fois et que toute opération sensible produit un événement d’audit.
+- création de comptes bancaires fictifs ;
+- numéro de compte unique ;
+- devise MAD ;
+- consultation des comptes appartenant à l’utilisateur ;
+- contrôle de propriété des ressources ;
+- gestion de l’état du compte ;
+- contrôle de concurrence avec version optimiste.
 
-## Architecture cible
+### Transactions
+
+- transfert entre deux comptes ;
+- validation du montant et des comptes ;
+- débit et crédit atomiques dans Account Service ;
+- rejet en cas de solde insuffisant ;
+- clé d’idempotence ;
+- prévention d’un double débit ;
+- historique des transferts de l’utilisateur.
+
+### Audit
+
+- enregistrement des transferts réussis ou échoués ;
+- identification de l’acteur et du service source ;
+- niveau de sévérité et résultat de l’opération ;
+- consultation réservée aux rôles autorisés ;
+- événements d’audit immuables.
+
+## Architecture
 
 ```mermaid
 flowchart TB
-    UI["Frontend React"] --> GW["API Gateway"]
-    GW --> AUTH["Auth Service"]
-    GW --> CUST["Customer Service"]
-    GW --> ACC["Account Service"]
-    GW --> TRX["Transaction Service"]
-    GW --> AUD["Audit Service"]
-    TRX --> RISK["Risk Service"]
-    AUTH --> MQ[(RabbitMQ)]
-    CUST --> MQ
-    ACC --> MQ
-    TRX --> MQ
-    MQ --> AUD
-    MQ --> NOTIF["Notification Service"]
-    MQ --> REPORT["Reporting Service"]
+  Client["Postman / Client"] --> Gateway["API Gateway : 8080"]
+
+  Gateway --> Auth["Auth Service : 8081"]
+  Gateway --> Account["Account Service : 8082"]
+  Gateway --> Transaction["Transaction Service : 8083"]
+  Gateway --> Audit["Audit Service : 8084"]
+
+  Transaction --> Account
+  Transaction --> Audit
+
+  Auth --> AuthDB[("auth_db")]
+  Account --> AccountDB[("account_db")]
+  Transaction --> TransactionDB[("transaction_db")]
+  Audit --> AuditDB[("audit_db")]
 ```
 
-Principes structurants :
+L’API Gateway est le seul point d’entrée applicatif publié sur la machine hôte.
 
-- une responsabilité métier principale par service ;
-- une base logique PostgreSQL par service ;
-- aucun accès direct à la base d’un autre service ;
-- REST pour les réponses synchrones nécessaires ;
-- événements pour l’audit, les notifications et le reporting ;
-- contrôles d’autorisation appliqués dans chaque service, pas uniquement dans la gateway ;
-- sécurité et traçabilité intégrées dès la conception.
+Les communications internes utilisent le réseau Docker et les noms DNS des services :
 
-Dans l’état actuel, seul `auth_db` est créé par Docker Compose.
+```text
+http://auth-service:8081
+http://account-service:8082
+http://transaction-service:8083
+http://audit-service:8084
+```
+
+## Principes d’architecture
+
+- responsabilité métier distincte pour chaque microservice ;
+- base logique et utilisateur PostgreSQL dédiés par service ;
+- aucune lecture directe de la base d’un autre service ;
+- API Gateway comme point d’entrée unique ;
+- validation du JWT dans les services métier ;
+- contrôles de rôle et de propriété côté serveur ;
+- migrations SQL versionnées avec Flyway ;
+- configurations injectées par variables d’environnement ;
+- secrets exclus du dépôt Git ;
+- images Docker construites avec des Dockerfiles multi-stage ;
+- exécution des conteneurs applicatifs avec un utilisateur non-root.
 
 ## Technologies
 
-### Technologies actuellement présentes
-
-| Technologie | Utilisation et justification |
+| Technologie | Utilisation |
 |---|---|
-| Java 21 | Version LTS moderne pour les microservices backend |
-| Spring Boot 4.1.1 | Configuration et démarrage de `auth-service` |
-| Spring Web MVC | Fondation des futures APIs REST |
-| Spring Data JPA | Mapping entre le domaine Java et PostgreSQL |
-| Flyway | Migrations SQL versionnées et reproductibles |
-| PostgreSQL 17 | Contraintes relationnelles et transactions locales fortes |
-| Docker Compose | Environnement PostgreSQL local reproductible |
-| JUnit 5 et Testcontainers | Tests d’intégration contre un véritable PostgreSQL éphémère |
-| Spring Boot Actuator | Endpoints de santé et d’information technique |
+| Java 21 | Langage backend |
+| Spring Boot 4.1.1 | Framework applicatif |
+| Spring Web MVC | APIs REST et API Gateway |
+| Spring Security | Authentification et autorisation |
+| OAuth2 Resource Server | Validation des JWT |
+| Spring Data JPA | Persistance |
+| Hibernate | Mapping objet-relationnel |
+| Flyway | Migrations de bases de données |
+| PostgreSQL 17 | Stockage relationnel |
+| Docker | Construction des images |
+| Docker Compose | Orchestration locale |
+| Maven | Build et dépendances |
+| JUnit 5 | Tests |
+| Mockito | Tests unitaires |
+| Testcontainers | Tests avec PostgreSQL |
+| Postman | Tests fonctionnels |
 
-### Technologies prévues
-
-- Spring Security, JWT, RBAC et BCrypt ou Argon2 ;
-- Spring Cloud Gateway ;
-- React, TypeScript et Vite ;
-- RabbitMQ pour les événements ;
-- GitHub Actions, SAST, SCA, secret scanning, Trivy, Checkov et OWASP ZAP ;
-- Docker, Kubernetes et Kustomize ou Helm ;
-- Prometheus, Grafana, Loki et Falco ;
-- CycloneDX ou Syft pour les SBOM et Cosign pour la signature des images.
-
-## Structure actuelle du dépôt
+## Structure du dépôt
 
 ```text
 secure-microservices-bank/
-|-- docker/
-|   `-- postgres-init/              # Initialisation sécurisée de PostgreSQL
-|-- docs/
-|   |-- architecture/               # Responsabilités et propriété des données
-|   `-- security/                   # Modèle de menace initial
-|-- security/
-|   `-- risk-acceptance.md          # Registre des exceptions de sécurité
-|-- services/
-|   `-- auth-service/               # Premier microservice Spring Boot
-|-- .env.example                    # Variables attendues, sans secret réel
-|-- docker-compose.yml              # PostgreSQL local
-|-- README.md
-`-- SECURITY.md
+├── docker/
+│   └── postgres-init/
+├── docs/
+│   ├── architecture/
+│   └── security/
+├── security/
+├── services/
+│   ├── api-gateway/
+│   ├── auth-service/
+│   ├── account-service/
+│   ├── transaction-service/
+│   └── audit-service/
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── README.md
+└── SECURITY.md
 ```
+
+Chaque service contient son propre :
+
+- projet Maven ;
+- code source ;
+- configuration Spring Boot ;
+- Dockerfile multi-stage ;
+- fichier `.dockerignore` ;
+- ensemble de tests ;
+- migrations Flyway lorsqu’une base est utilisée.
 
 ## Prérequis
 
+Pour démarrer l’environnement complet :
+
 - Git ;
-- Java 21 ;
-- Docker Desktop avec Docker Compose v2 ;
-- IntelliJ IDEA ou un autre IDE compatible Java, facultatif.
+- Docker Desktop ;
+- Docker Compose v2 ;
+- OpenSSL pour générer les clés RSA.
 
-Une installation globale de Maven n’est pas nécessaire : `auth-service` fournit Maven Wrapper 3.3.4, qui télécharge Maven 3.9.16 lors de la première utilisation.
+Java et Maven ne sont pas obligatoires pour un démarrage exclusivement avec Docker.
 
-Vérifiez votre environnement :
-
-```powershell
-git --version
-java --version
-docker --version
-docker compose version
-```
-
-## Démarrage local sous Windows PowerShell
+## Installation
 
 ### 1. Cloner le dépôt
 
@@ -142,72 +194,86 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-Renseignez des mots de passe locaux forts et différents :
+Renseignez toutes les valeurs laissées vides dans `.env`, notamment :
 
 ```dotenv
-POSTGRES_ADMIN_PASSWORD=<mot-de-passe-administrateur-local>
+POSTGRES_ADMIN_PASSWORD=<secret-local>
 
-AUTH_DB_NAME=auth_db
-AUTH_DB_USERNAME=auth_service_user
-AUTH_DB_PASSWORD=<mot-de-passe-auth-service-local>
-AUTH_DB_URL=jdbc:postgresql://localhost:5433/auth_db
+AUTH_DB_PASSWORD=<secret-local>
+ACCOUNT_DB_PASSWORD=<secret-local>
+TRANSACTION_DB_PASSWORD=<secret-local>
+AUDIT_DB_PASSWORD=<secret-local>
+
+INTERNAL_API_KEY=<valeur-aleatoire-de-plus-de-32-caracteres>
 ```
 
-Ne commitez jamais `.env`. Seul `.env.example`, sans valeurs sensibles, doit rester dans Git.
+Le fichier `.env` ne doit jamais être ajouté à Git.
 
-Le script d’initialisation PostgreSQL ne s’exécute que lors de la création d’un volume vide. Si vous modifiez ensuite le nom de la base, l’utilisateur ou son mot de passe, vous devrez recréer volontairement le volume avec `docker compose down -v` avant de redémarrer PostgreSQL. Cette opération efface les données locales existantes.
+### 3. Générer les clés RSA
 
-### 3. Valider et démarrer PostgreSQL
+Depuis la racine du projet :
+
+```powershell
+New-Item `
+    -ItemType Directory `
+    -Force `
+    -Path services/auth-service/secrets
+```
+
+Avec OpenSSL :
+
+```powershell
+openssl genpkey `
+    -algorithm RSA `
+    -out services/auth-service/secrets/jwt-private.pem `
+    -pkeyopt rsa_keygen_bits:3072
+```
+
+```powershell
+openssl pkey `
+    -in services/auth-service/secrets/jwt-private.pem `
+    -pubout `
+    -out services/auth-service/secrets/jwt-public.pem
+```
+
+Les clés sont exclues de Git. Docker Compose les monte dans les conteneurs sous forme de secrets.
+
+### 4. Valider la configuration
 
 ```powershell
 docker compose config --quiet
-docker compose up -d postgres
+```
+
+Une absence de sortie indique que la syntaxe et les variables obligatoires sont valides.
+
+### 5. Construire et démarrer le projet
+
+```powershell
+docker compose up -d --build
+```
+
+### 6. Vérifier les conteneurs
+
+```powershell
 docker compose ps
 ```
 
-Le port doit être publié uniquement sur la boucle locale :
+Les conteneurs suivants doivent être `healthy` :
 
 ```text
-127.0.0.1:5433->5432/tcp
+secure-bank-postgres
+secure-bank-auth-service
+secure-bank-account-service
+secure-bank-transaction-service
+secure-bank-audit-service
+secure-bank-api-gateway
 ```
 
-Vérifiez la base et l’utilisateur applicatif :
+### 7. Vérifier la Gateway
 
 ```powershell
-docker compose exec postgres bash -lc 'PGPASSWORD="$AUTH_DB_PASSWORD" psql -h 127.0.0.1 -U "$AUTH_DB_USERNAME" -d "$AUTH_DB_NAME" -At -c "SELECT current_user, current_database();"'
-```
-
-Résultat attendu :
-
-```text
-auth_service_user|auth_db
-```
-
-### 4. Configurer le processus Spring Boot
-
-Docker Compose lit automatiquement `.env`, mais une application lancée directement depuis IntelliJ ou PowerShell ne le charge pas automatiquement. Définissez donc les variables dans le terminal qui exécutera `auth-service` :
-
-```powershell
-$env:AUTH_DB_URL = "jdbc:postgresql://localhost:5433/auth_db"
-$env:AUTH_DB_USERNAME = "auth_service_user"
-$env:AUTH_DB_PASSWORD = "<même-valeur-que-dans-.env>"
-```
-
-Dans IntelliJ, les mêmes variables peuvent être ajoutées dans la configuration d’exécution de `AuthServiceApplication`.
-
-### 5. Démarrer `auth-service`
-
-```powershell
-Set-Location services/auth-service
-.\mvnw.cmd spring-boot:run
-```
-
-Le service écoute sur le port `8081`.
-
-### 6. Vérifier la santé du service
-
-```powershell
-Invoke-RestMethod http://localhost:8081/actuator/health
+Invoke-RestMethod `
+    http://localhost:8080/actuator/health
 ```
 
 Résultat attendu :
@@ -218,98 +284,182 @@ Résultat attendu :
 }
 ```
 
-Endpoints actuellement disponibles :
+## Ports
 
-| Méthode | Endpoint | État |
+| Composant | Port interne | Publication sur l’hôte |
+|---|---:|---|
+| API Gateway | 8080 | `127.0.0.1:8080` |
+| Auth Service | 8081 | Non publié |
+| Account Service | 8082 | Non publié |
+| Transaction Service | 8083 | Non publié |
+| Audit Service | 8084 | Non publié |
+| PostgreSQL | 5432 | `127.0.0.1:5433` |
+
+Les APIs doivent être appelées via :
+
+```text
+http://localhost:8080
+```
+
+## Endpoints du MVP
+
+### Authentification
+
+| Méthode | Endpoint | Accès |
 |---|---|---|
-| `GET` | `/actuator/health` | Disponible |
-| `GET` | `/actuator/info` | Disponible |
-| `POST` | `/api/auth/register` | Pas encore implémenté |
-| `POST` | `/api/auth/login` | Pas encore implémenté |
+| POST | `/api/v1/auth/register` | Public |
+| POST | `/api/v1/auth/login` | Public |
+| GET | `/api/v1/auth/me` | JWT |
+| POST | `/api/v1/auth/refresh` | Refresh token |
+| POST | `/api/v1/auth/logout` | Refresh token |
 
-### 7. Arrêter l’environnement
+### Comptes
 
-Depuis la racine du dépôt :
+| Méthode | Endpoint | Accès |
+|---|---|---|
+| POST | `/api/v1/accounts` | `CLIENT` |
+| GET | `/api/v1/accounts` | `CLIENT` |
+| GET | `/api/v1/accounts/{accountId}` | Propriétaire |
+
+### Transactions
+
+| Méthode | Endpoint | Accès |
+|---|---|---|
+| POST | `/api/v1/transfers` | `CLIENT` |
+| GET | `/api/v1/transfers` | `CLIENT` |
+| GET | `/api/v1/transfers/{transferId}` | Propriétaire |
+
+La création d’un transfert accepte l’en-tête :
+
+```http
+Idempotency-Key: <UUID>
+```
+
+Une même clé avec une même requête retourne le résultat initial sans effectuer un second débit.
+
+### Audit
+
+| Méthode | Endpoint | Accès |
+|---|---|---|
+| GET | `/api/v1/audit-events` | `ADMIN` ou `AUDITOR` |
+| GET | `/api/v1/audit-events/{eventId}` | `ADMIN` ou `AUDITOR` |
+
+## Scénario fonctionnel validé
+
+Le flux principal testé avec Postman est :
+
+```text
+Inscription
+→ Connexion
+→ Vérification de /me
+→ Création de deux comptes
+→ Ajout d’un solde fictif de démonstration
+→ Virement avec Idempotency-Key
+→ Vérification des soldes
+→ Rejeu idempotent
+→ Consultation de l’audit
+→ Rotation du refresh token
+→ Détection de la réutilisation
+→ Logout
+→ Refus du refresh token révoqué
+```
+
+Un solde fictif est injecté directement dans la base de démonstration, car les opérations de dépôt et de retrait ne font pas partie du MVP.
+
+## Tests
+
+Les services disposent de tests adaptés à leurs responsabilités :
+
+- tests unitaires du domaine et des services ;
+- tests MVC des contrôleurs et de la sécurité ;
+- tests de repositories ;
+- tests d’intégration PostgreSQL avec Testcontainers ;
+- tests fonctionnels du cycle complet avec Postman.
+
+Depuis le dossier d’un service disposant du Maven Wrapper :
+
+```powershell
+.\mvnw.cmd clean test
+```
+
+Ou avec une installation Maven globale :
+
+```powershell
+mvn clean test
+```
+
+## Arrêt de l’environnement
 
 ```powershell
 docker compose down
 ```
 
-N’utilisez `docker compose down -v` que pour réinitialiser volontairement la base. L’option `-v` supprime définitivement le volume PostgreSQL local et toutes ses données.
+Cette commande conserve les données PostgreSQL.
 
-## Exécution sous Linux ou macOS
-
-Les étapes Docker restent identiques. Après avoir exporté `AUTH_DB_URL`, `AUTH_DB_USERNAME` et `AUTH_DB_PASSWORD` dans le terminal, démarrez le service avec :
-
-```bash
-cd services/auth-service
-./mvnw spring-boot:run
-```
-
-## Tests
-
-Docker doit être démarré, car le test de contexte utilise Testcontainers et PostgreSQL 17. Grâce à `@ServiceConnection`, Testcontainers fournit automatiquement les informations de connexion à la base éphémère : il n’est pas nécessaire de démarrer PostgreSQL avec Docker Compose ni de définir les variables `AUTH_DB_*` pour exécuter les tests.
-
-Sous Windows :
+Pour supprimer volontairement les données locales :
 
 ```powershell
-Set-Location services/auth-service
-.\mvnw.cmd test
+docker compose down -v
 ```
 
-Sous Linux ou macOS :
+> Attention : l’option `-v` supprime définitivement le volume PostgreSQL et toutes ses données locales.
 
-```bash
-cd services/auth-service
-./mvnw test
-```
+## Sécurité
 
-## Documentation du projet
+Les principales mesures appliquées sont :
 
-- [Périmètre du projet](docs/project-scope.md)
+- BCrypt pour les mots de passe ;
+- signature RSA des JWT ;
+- access tokens courts ;
+- refresh tokens opaques et hachés ;
+- rotation et détection du rejeu ;
+- RBAC ;
+- contrôle de propriété ;
+- clés internes pour les endpoints interservices ;
+- validation des DTO ;
+- erreurs HTTP contrôlées ;
+- secrets exclus de Git ;
+- utilisateurs PostgreSQL dédiés ;
+- conteneurs non-root ;
+- option Docker `no-new-privileges` ;
+- exposition réseau minimale.
+
+Consultez [SECURITY.md](SECURITY.md) et le modèle de menace dans `docs/security`.
+
+## Limites du MVP
+
+Les éléments suivants ne sont pas présentés comme implémentés :
+
+- frontend web ;
+- dépôts et retraits bancaires ;
+- Kafka ou RabbitMQ ;
+- Risk Service ;
+- Notification Service ;
+- Reporting avancé ;
+- Kubernetes ;
+- déploiement cloud ;
+- observabilité complète ;
+- MFA ;
+- système bancaire réel.
+
+Ces éléments constituent des évolutions possibles.
+
+## Documentation
+
+- [Périmètre](docs/project-scope.md)
 - [Cas d’utilisation](docs/use-cases.md)
 - [Règles métier](docs/business-rules.md)
-- [Responsabilités des microservices](docs/architecture/service-responsibilities.md)
-- [Propriété et gouvernance des données](docs/architecture/data-ownership.md)
-- [ADR-0001 — Baseline Java et Spring Boot](docs/architecture/decisions/0001-java-spring-boot-baseline.md)
-- [Modèle de menace STRIDE](docs/security/initial-threat-model.md)
-- [Registre d’acceptation des risques](security/risk-acceptance.md)
+- [Responsabilités des services](docs/architecture/service-responsibilities.md)
+- [Propriété des données](docs/architecture/data-ownership.md)
+- [Modèle de menace](docs/security/initial-threat-model.md)
+- [Politique de sécurité](SECURITY.md)
 
-## Règles de sécurité essentielles
+## Auteur
 
-- utiliser uniquement des données fictives ;
-- ne jamais commiter de secret, token, mot de passe réel ou fichier `.env` ;
-- ne jamais journaliser un mot de passe ou un token ;
-- hacher les mots de passe avec BCrypt ou Argon2 avant leur persistance ;
-- appliquer le moindre privilège aux utilisateurs de base de données ;
-- valider les entrées et retourner des erreurs publiques génériques ;
-- vérifier les rôles et la propriété des ressources dans chaque service ;
-- documenter toute exception dans `security/risk-acceptance.md`.
-
-Consultez [SECURITY.md](SECURITY.md) avant de signaler une vulnérabilité ou de contribuer à une partie sensible.
-
-## Méthode de contribution
-
-1. synchroniser `main` ;
-2. créer une branche courte et ciblée ;
-3. effectuer un changement cohérent ;
-4. exécuter les tests et vérifier qu’aucun secret n’est présent ;
-5. ouvrir une pull request expliquant le besoin, la solution et les validations réalisées ;
-6. fusionner uniquement après validation.
-
-## Feuille de route prioritaire
-
-1. terminer le modèle `User` et les migrations de `auth-service` ;
-2. ajouter repository, DTO, validation et gestion globale des erreurs ;
-3. implémenter inscription, hashage du mot de passe et tests ;
-4. ajouter connexion, JWT, refresh token et verrouillage temporaire ;
-5. développer Gateway et Customer Service ;
-6. développer Account et Transaction avec idempotence et contrôle de concurrence ;
-7. introduire RabbitMQ et Audit Service ;
-8. ajouter progressivement CI/CD, contrôles DevSecOps, Kubernetes et observabilité.
+**BAHRA Ahmed Yassine**  
+Élève ingénieur en Génie Informatique  
+ENSA Khouribga
 
 ## Avertissement
 
-Ce projet est une simulation académique et un support de portfolio. Il ne fournit aucun service bancaire réel, ne doit contenir aucune donnée personnelle réelle et n’est pas homologué pour un usage de production.
-
-Aucune licence open source n’est définie pour le moment.
+SecureMicroservicesBank est une simulation académique. Le logiciel ne doit traiter aucune donnée bancaire réelle et n’est pas homologué pour un usage en production.
