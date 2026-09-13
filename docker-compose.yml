@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:17
     container_name: secure-bank-postgres
+    restart: unless-stopped
+
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
@@ -22,18 +24,283 @@ services:
       AUDIT_DB_NAME: ${AUDIT_DB_NAME:-audit_db}
       AUDIT_DB_USERNAME: ${AUDIT_DB_USERNAME:-audit_service_user}
       AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD is required}
+
     ports:
       - "127.0.0.1:5433:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+
     healthcheck:
       test:
         - CMD-SHELL
         - pg_isready -U postgres -d postgres
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
+
+    networks:
+      - banking-network
+
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+
+    image: secure-bank-auth-service:local
+    container_name: secure-bank-auth-service
+    restart: unless-stopped
+    init: true
+
+    environment:
+      AUTH_DB_URL: jdbc:postgresql://postgres:5432/${AUTH_DB_NAME:-auth_db}
+      AUTH_DB_USERNAME: ${AUTH_DB_USERNAME:-auth_service_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD is required}
+
+      JWT_ISSUER: ${JWT_ISSUER:-secure-bank-auth-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-secure-bank-api}
+      JWT_KEY_ID: ${JWT_KEY_ID:-auth-key-2026-01}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-PT10M}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-P7D}
+      JWT_REFRESH_TOKEN_FAMILY_TTL: ${JWT_REFRESH_TOKEN_FAMILY_TTL:-P30D}
+
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+
+    expose:
+      - "8081"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+    networks:
+      - banking-network
+
+
+  account-service:
+    build:
+      context: ./services/account-service
+      dockerfile: Dockerfile
+
+    image: secure-bank-account-service:local
+    container_name: secure-bank-account-service
+    restart: unless-stopped
+    init: true
+
+    environment:
+      ACCOUNT_DB_URL: jdbc:postgresql://postgres:5432/${ACCOUNT_DB_NAME:-account_db}
+      ACCOUNT_DB_USERNAME: ${ACCOUNT_DB_USERNAME:-account_service_user}
+      ACCOUNT_DB_PASSWORD: ${ACCOUNT_DB_PASSWORD:?ACCOUNT_DB_PASSWORD is required}
+
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
+
+      JWT_ISSUER: ${JWT_ISSUER:-secure-bank-auth-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-secure-bank-api}
+      ACCOUNT_JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+
+    secrets:
+      - jwt_public_key
+
+    expose:
+      - "8082"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://localhost:8082/actuator/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+    networks:
+      - banking-network
+
+
+  audit-service:
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+
+    image: secure-bank-audit-service:local
+    container_name: secure-bank-audit-service
+    restart: unless-stopped
+    init: true
+
+    environment:
+      AUDIT_DB_URL: jdbc:postgresql://postgres:5432/${AUDIT_DB_NAME:-audit_db}
+      AUDIT_DB_USERNAME: ${AUDIT_DB_USERNAME:-audit_service_user}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD is required}
+
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
+
+      JWT_ISSUER: ${JWT_ISSUER:-secure-bank-auth-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-secure-bank-api}
+      AUDIT_JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+
+    secrets:
+      - jwt_public_key
+
+    expose:
+      - "8084"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://localhost:8084/actuator/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+    networks:
+      - banking-network
+
+
+  transaction-service:
+    build:
+      context: ./services/transaction-service
+      dockerfile: Dockerfile
+
+    image: secure-bank-transaction-service:local
+    container_name: secure-bank-transaction-service
+    restart: unless-stopped
+    init: true
+
+    environment:
+      TRANSACTION_DB_URL: jdbc:postgresql://postgres:5432/${TRANSACTION_DB_NAME:-transaction_db}
+      TRANSACTION_DB_USERNAME: ${TRANSACTION_DB_USERNAME:-transaction_service_user}
+      TRANSACTION_DB_PASSWORD: ${TRANSACTION_DB_PASSWORD:?TRANSACTION_DB_PASSWORD is required}
+
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
+
+      JWT_ISSUER: ${JWT_ISSUER:-secure-bank-auth-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-secure-bank-api}
+      TRANSACTION_JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+
+      ACCOUNT_SERVICE_BASE_URL: http://account-service:8082
+      AUDIT_SERVICE_BASE_URL: http://audit-service:8084
+
+    secrets:
+      - jwt_public_key
+
+    expose:
+      - "8083"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      audit-service:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+    networks:
+      - banking-network
+
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+
+    image: secure-bank-api-gateway:local
+    container_name: secure-bank-api-gateway
+    restart: unless-stopped
+    init: true
+
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8081
+      ACCOUNT_SERVICE_URL: http://account-service:8082
+      TRANSACTION_SERVICE_URL: http://transaction-service:8083
+      AUDIT_SERVICE_URL: http://audit-service:8084
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      audit-service:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://localhost:8080/actuator/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+    security_opt:
+      - no-new-privileges:true
+
+    networks:
+      - banking-network
+
 
 volumes:
   postgres_data:
+
+
+networks:
+  banking-network:
+    driver: bridge
+
+
+secrets:
+  jwt_private_key:
+    file: ./services/auth-service/secrets/jwt-private.pem
+
+  jwt_public_key:
+    file: ./services/auth-service/secrets/jwt-public.pem
